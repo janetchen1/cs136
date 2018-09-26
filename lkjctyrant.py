@@ -132,11 +132,11 @@ class LkjcTyrant(Peer):
 
             # pick uploads
             ul = 0
-            while ul < self.cap:
-                most_likely = max(ratios.values())
-                best = random.choice([key for key,value in ratios.items() if value == most_likely])
+            sorted_peers = sorted(ratios, key=lambda k: ratios[k], reverse=False)
+            logging.debug(sorted_peers)
+            while ul < self.cap and len(sorted_peers) > 0:
+                best = sorted_peers.pop()
                 if (ul + self.taus[best]) < self.cap:
-                    ratios.pop(best)
                     chosen.append(best)
                     bws.append(self.taus[best])
                 ul += self.taus[best]
@@ -166,7 +166,7 @@ class LkjcTyrant(Peer):
             self.unchoked_past[dl.from_id] += 1
             # if peer j has unchoked i for each of last r rounds, then decrease tau_j
             if self.unchoked_past[dl.from_id] > self.r:
-                self.taus *= (1-self.gamma)
+                self.taus[dl.from_id] *= (1-self.gamma)
 
         # update tau and unchoked_past peers who didn't unchoke me
         others = list(set(chosen)-unchokers)
