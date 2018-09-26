@@ -128,14 +128,14 @@ class LkjcTyrant(Peer):
             # sort peers by decreasing ratio of reciprocation likelihood
             ratios = dict()
             for peer in request_ids:
-                ratios[peer.id] = self.flows[peer.id]/self.taus[peer.id]
+                ratios[peer] = self.flows[peer]/self.taus[peer]
 
             # pick uploads
             ul = 0
             while ul < self.cap:
                 most_likely = max(ratios.values())
                 best = random.choice([key for key,value in ratios.items() if value == most_likely])
-                if (ul + self.upload_rates[best]) < self.cap:
+                if (ul + self.taus[best]) < self.cap:
                     ratios.pop(best)
                     chosen.append(best)
                     bws.append(self.taus[best])
