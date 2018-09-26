@@ -61,21 +61,31 @@ class LkjcTyrant(Peer):
         peers.sort(key=lambda p: p.id)
         # request all available pieces from all peers!
         # (up to self.max_requests from each)
+
+        # rarest first strategy
+        piece_peers = dict()
+        n_requests = dict()
+
         for peer in peers:
             av_set = set(peer.available_pieces)
             isect = av_set.intersection(np_set)
-            n = min(self.max_requests, len(isect))
-            # More symmetry breaking -- ask for random pieces.
-            # This would be the place to try fancier piece-requesting strategies
-            # to avoid getting the same thing from multiple peers at a time.
-            for piece_id in random.sample(isect, n):
-                # aha! The peer has this piece! Request it.
-                # which part of the piece do we need next?
-                # (must get the next-needed blocks in order)
-                start_block = self.pieces[piece_id]
-                r = Request(self.id, peer.id, piece_id, start_block)
-                requests.append(r)
+            n_requests[peer.id] = 0
+            # n = min(self.max_requests, len(isect))
+            for piece_id in list(isect):
+                if piece_id not in piece_peers:
+                    piece_peers[piece_id] = [peer]
+                else:
+                    piece_peers[piece_id].append(peer)
 
+        # sort pieces by rarest
+        rarest = sorted(piece_peers, key=lambda k: len(piece_peers[k]), reverse=False)
+        for piece in rarest:
+            for peer in piece_peers[piece]:
+                if n_requests[peer.id] < self.max_requests:
+                    n_requests[peer.id] += 1
+                    start_block = self.pieces[piece_id]
+                    r = Request(self.id, peer.id, piece_id, start_block)
+                    requests.append(r)
         return requests
 
     def uploads(self, requests, peers, history):
