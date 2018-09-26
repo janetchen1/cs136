@@ -18,6 +18,13 @@ class LkjcTyrant(Peer):
         print "post_init(): %s here!" % self.id
         self.dummy_state = dict()
         self.dummy_state["cake"] = "lie"
+        self.gamma = 0.1
+        self.r = 3
+        self.alpha = 0.2
+        self.cap = self.up_bw
+        self.flows = dict()
+        self.taus = dict()
+        self.unchoked_past = dict()
     
     def requests(self, peers, history):
         """
@@ -28,6 +35,7 @@ class LkjcTyrant(Peer):
 
         This will be called after update_pieces() with the most recent state.
         """
+
         needed = lambda i: self.pieces[i] < self.conf.blocks_per_piece
         needed_pieces = filter(needed, range(len(self.pieces)))
         np_set = set(needed_pieces)  # sets support fast intersection ops.
@@ -89,22 +97,71 @@ class LkjcTyrant(Peer):
         # has a list of Download objects for each Download to this peer in
         # the previous round.
 
+         # Initialize f_j and t_j for all peers
+        if round == 0:
+            for peer in peers:
+                self.flows[peer.id] = self.up_bw / 4
+                self.taus[peer.id] = 1
+                # how many times has this peer unchoked me before?
+                self.unchoked_past[peer.id] = 0
+
+        chosen = []
+        bws = []
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
-            chosen = []
-            bws = []
         else:
+            request_ids = []
+            for request in requests:
+                request_ids.append(request.requester_id)
+
+            # step 4
+            # sort peers by decreasing ratio of reciprocation likelihood
+            ratios = dict()
+            for peer in request_ids:
+                ratios[peer.id] = self.flows[peer.id]/self.taus[peer.id]
+
+            # pick uploads
+            ul = 0
+            while ul < self.cap:
+                most_likely = max(ratios.values())
+                best = random.choice([key for key,value in ratios.items() if value == most_likely])
+                if (ul + self.upload_rates[best]) < self.cap:
+                    ratios.pop(best)
+                    chosen.append(best)
+                    bws.append(self.taus[best])
+                ul += self.taus[best]
+
+            """
             logging.debug("Still here: uploading to a random peer")
             # change my internal state for no reason
             self.dummy_state["cake"] = "pie"
-
-            request = random.choice(requests)
-            chosen = [request.requester_id]
-            # Evenly "split" my upload bandwidth among the one chosen requester
-            bws = even_split(self.up_bw, len(chosen))
-
+            """
+            
         # create actual uploads out of the list of peer ids and bandwidths
         uploads = [Upload(self.id, peer_id, bw)
                    for (peer_id, bw) in zip(chosen, bws)]
+
+        if round == 0:
+            return uploads
+
+        # Step 5
+
+        # find peers who unchoked me and update
+        unchokers = set()
+        for dl in history.downloads[round-1]:
+            # update flow with observed flow
+            self.flows[dl.from_id] = dl.blocks
+            unchokers.add(dl.from_id)
+            # increment unchoked_past
+            self.unchoked_past[dl.from_id] += 1
+            # if peer j has unchoked i for each of last r rounds, then decrease tau_j
+            if self.unchoked_past[dl.from_id] > self.r:
+                self.taus *= (1-self.gamma)
+
+        # update tau and unchoked_past peers who didn't unchoke me
+        others = list(set(chosen)-unchokers)
+        for j in others:
+            self.taus[j] *= (1+self.alpha)
+            self.unchoked_past[j] = 0
             
         return uploads
