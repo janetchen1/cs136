@@ -36,15 +36,13 @@ class LkjcPropShare(Peer):
         requests = []   # We'll put all the things we want here
         # Symmetry breaking is good...
         random.shuffle(needed_pieces)
-        
-        # Sort peers by id.  This is probably not a useful sort, but other 
-        # sorts might be useful
-        peers.sort(key=lambda p: p.id)
+
         # request all available pieces from all peers!
         # (up to self.max_requests from each)
 
         # rarest first strategy
         piece_peers = dict()
+        piece_counts = dict()
         n_requests = dict()
 
         for peer in peers:
@@ -54,19 +52,37 @@ class LkjcPropShare(Peer):
             # n = min(self.max_requests, len(isect))
             for piece_id in list(isect):
                 if piece_id not in piece_peers:
-                    piece_peers[piece_id] = [peer]
+                    piece_peers[piece_id] = [peer.id]
+                    piece_counts[piece_id] = 0
                 else:
-                    piece_peers[piece_id].append(peer)
+                    piece_peers[piece_id].append(peer.id)
+                    piece_counts[piece_id] += 0
 
-        # sort pieces by rarest
-        rarest = sorted(piece_peers, key=lambda k: len(piece_peers[k]), reverse=False)
-        for piece in rarest:
-            for peer in piece_peers[piece]:
-                if n_requests[peer.id] < self.max_requests:
-                    n_requests[peer.id] += 1
-                    start_block = self.pieces[piece_id]
-                    r = Request(self.id, peer.id, piece_id, start_block)
-                    requests.append(r)
+        counts_piece = dict()
+        for piece, count in piece_counts.items():
+            if count in counts_piece:
+                counts_piece[count].append(piece)
+            else:
+                counts_piece[count] = [piece]
+
+        rarest = sorted(counts_piece.items())
+
+
+        for peer in peers:
+            av_set = set(peer.available_pieces)
+            isect = av_set.intersection(np_set)
+            n = min(self.max_requests, len(isect))
+            count = 0
+            while count < n:
+                for c, piece_id_list in rarest:
+                    random.shuffle(piece_id_list)
+                    for piece_id in piece_id_list:
+                        if piece_id in av_set:
+                            count += 1
+                            start_block = self.pieces[piece_id]
+                            r = Request(self.id, peer.id, piece_id, start_block)
+                            requests.append(r)
+
         return requests
 
     def uploads(self, requests, peers, history):
