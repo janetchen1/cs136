@@ -124,8 +124,8 @@ class LkjcPropShare(Peer):
 
                 # smallest to largest
                 sorted_ids = sorted(last_dls, key=lambda k: last_dls[k], reverse=False)
-                # if len(sorted_ids) > 3:
-                #     sorted_ids = sorted_ids[:2]
+                #if len(sorted_ids) > 3:
+                #    sorted_ids = sorted_ids[:2]
                 total_dl = sum([last_dls[k] for k in sorted_ids])
 
                 for chosen_peer in sorted_ids:

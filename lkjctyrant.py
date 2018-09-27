@@ -109,8 +109,8 @@ class LkjcTyrant(Peer):
          # Initialize f_j and t_j for all peers
         if round == 0:
             for peer in peers:
-                self.flows[peer.id] = self.up_bw / 4
-                self.taus[peer.id] = 1
+                self.flows[peer.id] = 1
+                self.taus[peer.id] = self.up_bw / 4
                 # how many times has this peer unchoked me before?
                 self.unchoked_past[peer.id] = 0
 
@@ -131,14 +131,14 @@ class LkjcTyrant(Peer):
 
             # pick uploads
             ul = 0
-            sorted_peers = sorted(ratios, key=lambda k: ratios[k], reverse=False)
+            sorted_peers = sorted(ratios, key=lambda k: ratios[k], reverse=True)
             logging.debug(sorted_peers)
             while ul < self.cap and len(sorted_peers) > 0:
                 best = sorted_peers.pop()
                 if (ul + self.taus[best]) < self.cap:
                     chosen.append(best)
                     bws.append(self.taus[best])
-                ul += self.taus[best]
+                    ul += self.taus[best]
 
             """
             logging.debug("Still here: uploading to a random peer")
@@ -154,23 +154,29 @@ class LkjcTyrant(Peer):
             return uploads
 
         # Step 5
-
-        # find peers who unchoked me and update
-        unchokers = set()
+        dl_history = dict()
         for dl in history.downloads[round-1]:
-            # update flow with observed flow
-            self.flows[dl.from_id] = dl.blocks
-            unchokers.add(dl.from_id)
-            # increment unchoked_past
-            self.unchoked_past[dl.from_id] += 1
-            # if peer j has unchoked i for each of last r rounds, then decrease tau_j
-            if self.unchoked_past[dl.from_id] > self.r:
-                self.taus[dl.from_id] *= (1-self.gamma)
+            if dl.from_id not in dl_history.keys():
+                dl_history[dl.from_id] = dl.blocks
+                self.unchoked_past[dl.from_id] += 1
+            else:
+                dl_history[dl.from_id] += dl.blocks
 
-        # update tau and unchoked_past peers who didn't unchoke me
-        others = list(set(chosen)-unchokers)
-        for j in others:
-            self.taus[j] *= (1+self.alpha)
-            self.unchoked_past[j] = 0
+        for peer in peers:
+            if peer.id not in dl_history.keys():
+                self.unchoked_past[peer.id] = 0
+
+        ul_history = set()
+        for ul in history.uploads[round-1]:
+            ul_history.add(ul.to_id)
+
+        # update peers who i unchoked last round
+        for peer in list(ul_history):
+            if peer not in dl_history.keys():
+                self.taus[peer] *= (1+self.alpha)
+            else:
+                self.flows[peer] = dl_history[peer]
+                if self.unchooked_past[peer] > self.r:
+                    self.taus[dl.from_id] *= (1-self.gamma)
             
         return uploads
