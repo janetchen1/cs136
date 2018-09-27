@@ -35,7 +35,6 @@ class LkjcTyrant(Peer):
 
         This will be called after update_pieces() with the most recent state.
         """
-
         needed = lambda i: self.pieces[i] < self.conf.blocks_per_piece
         needed_pieces = filter(needed, range(len(self.pieces)))
         np_set = set(needed_pieces)  # sets support fast intersection ops.
