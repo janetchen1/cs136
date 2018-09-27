@@ -13,11 +13,12 @@ from messages import Upload, Request
 from util import even_split
 from peer import Peer
 
-class Lkjc(Peer):
+class LkjcStd(Peer):
     def post_init(self):
         print "post_init(): %s here!" % self.id
         self.dummy_state = dict()
         self.dummy_state["cake"] = "lie"
+        self.optimistic = None
     
     def requests(self, peers, history):
         """
@@ -44,30 +45,36 @@ class Lkjc(Peer):
         logging.debug("look at the AgentHistory class in history.py for details")
         logging.debug(str(history))
 
-        requests = []   # We'll put all the things we want here
+        requests = []
         # Symmetry breaking is good...
         random.shuffle(needed_pieces)
         
-        # Sort peers by id.  This is probably not a useful sort, but other 
-        # sorts might be useful
-        peers.sort(key=lambda p: p.id)
         # request all available pieces from all peers!
         # (up to self.max_requests from each)
+
+        # rarest first strategy
+        piece_peers = dict()
+        n_requests = dict()
+
         for peer in peers:
             av_set = set(peer.available_pieces)
             isect = av_set.intersection(np_set)
-            n = min(self.max_requests, len(isect))
-            # More symmetry breaking -- ask for random pieces.
-            # This would be the place to try fancier piece-requesting strategies
-            # to avoid getting the same thing from multiple peers at a time.
-            for piece_id in random.sample(isect, n):
-                # aha! The peer has this piece! Request it.
-                # which part of the piece do we need next?
-                # (must get the next-needed blocks in order)
-                start_block = self.pieces[piece_id]
-                r = Request(self.id, peer.id, piece_id, start_block)
-                requests.append(r)
+            n_requests[peer.id] = 0
+            for piece_id in list(isect):
+                if piece_id not in piece_peers:
+                    piece_peers[piece_id] = [peer]
+                else:
+                    piece_peers[piece_id].append(peer)
 
+        # sort pieces by rarest
+        rarest = sorted(piece_peers, key=lambda k: len(piece_peers[k]), reverse=False)
+        for piece in rarest:
+            for peer in piece_peers[piece]:
+                if n_requests[peer.id] < self.max_requests:
+                    n_requests[peer.id] += 1
+                    start_block = self.pieces[piece_id]
+                    r = Request(self.id, peer.id, piece_id, start_block)
+                    requests.append(r)
         return requests
 
     def uploads(self, requests, peers, history):
@@ -84,23 +91,50 @@ class Lkjc(Peer):
         round = history.current_round()
         logging.debug("%s again.  It's round %d." % (
             self.id, round))
-        # One could look at other stuff in the history too here.
-        # For example, history.downloads[round-1] (if round != 0, of course)
-        # has a list of Download objects for each Download to this peer in
-        # the previous round.
 
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
             chosen = []
             bws = []
         else:
-            logging.debug("Still here: uploading to a random peer")
-            # change my internal state for no reason
-            self.dummy_state["cake"] = "pie"
+            chosen = []
+            # if insufficient history, optimistically unchoke for all 3 meritocratic slots
+            if history.current_round < 2:
+                options = requests
+                for i in range(3):
+                    choice = random.choice(options)
+                    options.remove(choice)
+                    chosen.append(choice)
+            else:
+                # list of requesters
+                requesters = []
+                for request in requests:
+                    requesters.append(request.requester_id)
 
-            request = random.choice(requests)
-            chosen = [request.requester_id]
-            # Evenly "split" my upload bandwidth among the one chosen requester
+                # aggregate downloads from last 2 rounds to reference later
+                download_history = {}
+                for dl in history.downloads[round-1]:
+                    if dl.from_id in requesters:
+                        # disregard peers who aren't requesting
+                        if download_history[dl.from_id]:
+                            download_history[dl.from_id] += dl.blocks
+                        else:
+                            download_history[dl.from_id] = dl.blocks
+
+                # unchoke those who gave you fastest download speeds in last 2 rounds combined
+                for i in range(3):
+                    if len(download_history) > 0:
+                        top = argmax((k, download_history[k]) for k in download_history.keys())
+                        chosen.append(top)
+                        download_history.pop(top, None)
+                        requesters.remove(top)
+
+                # optimistic unchoke - 1 new one every 3 rounds
+                if round % 3 == 0:
+                    self.optimistic = random.choice(requesters)
+                chosen.append(self.optimistic)
+            
+            # Evenly "split" my upload bandwidth among the chosen requesters
             bws = even_split(self.up_bw, len(chosen))
 
         # create actual uploads out of the list of peer ids and bandwidths
