@@ -33,18 +33,6 @@ class LkjcPropShare(Peer):
         needed_pieces = filter(needed, range(len(self.pieces)))
         np_set = set(needed_pieces)  # sets support fast intersection ops.
 
-
-        logging.debug("%s here: still need pieces %s" % (
-            self.id, needed_pieces))
-
-        logging.debug("%s still here. Here are some peers:" % self.id)
-        for p in peers:
-            logging.debug("id: %s, available pieces: %s" % (p.id, p.available_pieces))
-
-        logging.debug("And look, I have my entire history available too:")
-        logging.debug("look at the AgentHistory class in history.py for details")
-        logging.debug(str(history))
-
         requests = []   # We'll put all the things we want here
         # Symmetry breaking is good...
         random.shuffle(needed_pieces)
@@ -109,10 +97,6 @@ class LkjcPropShare(Peer):
                 chosen = [request.requester_id for request in requests]
                 bws = even_split(self.up_bw, len(chosen))
             else:
-                logging.debug("Still here: uploading to a propshare peer")
-                # change my internal state for no reason
-                self.dummy_state["cake"] = "pie"
-                
                 requester_ids = [request.requester_id for request in requests]
                 # requester_id : blocks given to us in last round
                 last_dls = {}
