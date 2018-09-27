@@ -34,21 +34,24 @@ class LkjcStd(Peer):
         np_set = set(needed_pieces)  # sets support fast intersection ops.
 
 
-        logging.debug("%s here: still need pieces %s" % (
-            self.id, needed_pieces))
+        #logging.debug("%s here: still need pieces %s" % (
+            #self.id, needed_pieces))
 
-        logging.debug("%s still here. Here are some peers:" % self.id)
-        for p in peers:
-            logging.debug("id: %s, available pieces: %s" % (p.id, p.available_pieces))
+        #logging.debug("%s still here. Here are some peers:" % self.id)
+        #for p in peers:
+            #logging.debug("id: %s, available pieces: %s" % (p.id, p.available_pieces))
 
-        logging.debug("And look, I have my entire history available too:")
-        logging.debug("look at the AgentHistory class in history.py for details")
-        logging.debug(str(history))
+        #logging.debug("And look, I have my entire history available too:")
+        #logging.debug("look at the AgentHistory class in history.py for details")
+        #logging.debug(str(history))
 
-        requests = []
+        requests = []   # We'll put all the things we want here
         # Symmetry breaking is good...
         random.shuffle(needed_pieces)
         
+        # Sort peers by id.  This is probably not a useful sort, but other 
+        # sorts might be useful
+        peers.sort(key=lambda p: p.id)
         # request all available pieces from all peers!
         # (up to self.max_requests from each)
 
@@ -60,6 +63,7 @@ class LkjcStd(Peer):
             av_set = set(peer.available_pieces)
             isect = av_set.intersection(np_set)
             n_requests[peer.id] = 0
+            # n = min(self.max_requests, len(isect))
             for piece_id in list(isect):
                 if piece_id not in piece_peers:
                     piece_peers[piece_id] = [peer]
@@ -76,7 +80,6 @@ class LkjcStd(Peer):
                     r = Request(self.id, peer.id, piece_id, start_block)
                     requests.append(r)
         return requests
-
     def uploads(self, requests, peers, history):
         """
         requests -- a list of the requests for this peer for this round
