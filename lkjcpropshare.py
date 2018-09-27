@@ -130,7 +130,7 @@ class LkjcPropShare(Peer):
 
                 for chosen_peer in sorted_ids:
                     chosen.append(chosen_peer)
-                    ratio = float64(last_dls[chosen_peer])/float64(total_dl)
+                    ratio = float(last_dls[chosen_peer])/float(total_dl)
                     bw = ratio*self.percentage*self.up_bw
                     bws.append(bw)
 
@@ -138,7 +138,7 @@ class LkjcPropShare(Peer):
                 if len(others) > 0:
                     optimistic = random.choice(others)
                     chosen.append(optimistic)
-                    bws.append((1-self.percentage)*self.up_bw)
+                    bws.append(self.up_bw-sum(bws))
 
         # create actual uploads out of the list of peer ids and bandwidths
         uploads = [Upload(self.id, peer_id, bw)
