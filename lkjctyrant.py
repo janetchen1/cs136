@@ -18,9 +18,9 @@ class LkjcTyrant(Peer):
         print "post_init(): %s here!" % self.id
         self.dummy_state = dict()
         self.dummy_state["cake"] = "lie"
-        self.gamma = 0.1
+        self.gamma = 0.05
         self.r = 3
-        self.alpha = 0.2
+        self.alpha = 0.1
         self.cap = self.up_bw
         self.flows = dict()
         self.taus = dict()
@@ -163,13 +163,11 @@ class LkjcTyrant(Peer):
 
             # pick uploads
             ul = 0
-            sorted_peers = sorted(ratios, key=lambda k: ratios[k], reverse=False)
+            sorted_peers = sorted(ratios, key=lambda k: ratios[k], reverse=True)
             #logging.info(sorted_peers)
             #logging.info(ratios)
-            while ul <= self.cap and len(sorted_peers) > 0:
-                best = sorted_peers.pop()
-                #logging.info(best)
-                if (ul + self.taus[best]) < self.cap:
+            for best in sorted_peers:
+                if (ul + self.taus[best]) <= self.cap:
                     chosen.append(best)
                     bws.append(self.taus[best])
                     ul += self.taus[best]
