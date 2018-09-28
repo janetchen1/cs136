@@ -82,7 +82,9 @@ class LkjcStd(Peer):
                             start_block = self.pieces[piece_id]
                             r = Request(self.id, peer.id, piece_id, start_block)
                             requests.append(r)
+
         return requests
+
     def uploads(self, requests, peers, history):
         """
         requests -- a list of the requests for this peer for this round
@@ -122,7 +124,7 @@ class LkjcStd(Peer):
                 for dl in history.downloads[round-1]:
                     if dl.from_id in requesters:
                         # disregard peers who aren't requesting
-                        if download_history[dl.from_id]:
+                        if dl.from_id in download_history:
                             download_history[dl.from_id] += dl.blocks
                         else:
                             download_history[dl.from_id] = dl.blocks
@@ -130,14 +132,16 @@ class LkjcStd(Peer):
                 # unchoke those who gave you fastest download speeds in last 2 rounds combined
                 for i in range(3):
                     if len(download_history) > 0:
-                        top = argmax((k, download_history[k]) for k in download_history.keys())
+                        top = max(download_history, key=download_history.get)
+                        #argmax((k, download_history[k]) for k in download_history.keys())
                         chosen.append(top)
                         download_history.pop(top, None)
                         requesters.remove(top)
 
                 # optimistic unchoke - 1 new one every 3 rounds
                 if round % 3 == 0:
-                    self.optimistic = random.choice(requesters)
+                    if len(requesters) > 0:
+                        self.optimistic = random.choice(requesters)
                 chosen.append(self.optimistic)
             
             # Evenly "split" my upload bandwidth among the chosen requesters
