@@ -18,13 +18,14 @@ class LkjcTyrant(Peer):
         print "post_init(): %s here!" % self.id
         self.dummy_state = dict()
         self.dummy_state["cake"] = "lie"
-        self.gamma = 0.05
-        self.r = 3
-        self.alpha = 0.1
+        self.gamma = 0.1
+        self.r = 2
+        self.alpha = 0.3
         self.cap = self.up_bw
         self.flows = dict()
         self.taus = dict()
         self.unchoked_past = dict()
+        self.last_avail = dict()
     
     def requests(self, peers, history):
         """
@@ -117,6 +118,7 @@ class LkjcTyrant(Peer):
                 self.taus[peer.id] = self.up_bw / 4.0
                 # how many times has this peer unchoked me before?
                 self.unchoked_past[peer.id] = 0
+                self.last_avail[peer.id] = []
         else:
             # Step 5
             # look at last round downloads
@@ -128,9 +130,12 @@ class LkjcTyrant(Peer):
                 else:
                     dl_history[dl.from_id] += dl.blocks
 
+            available_change = set()
             for peer in peers:
                 if peer.id not in dl_history:
                     self.unchoked_past[peer.id] = 0
+                if peer.available_pieces != self.last_avail[peer.id]:
+                    available_change.add(peer.id)
 
             # look at last round uploads
             ul_history = set()
@@ -145,6 +150,14 @@ class LkjcTyrant(Peer):
                     self.flows[peer] = dl_history[peer]
                     if self.unchoked_past[peer] > self.r:
                         self.taus[peer] = self.taus[peer]*(1-self.gamma)
+
+            # update taus for peer to back to normal level of
+            # available pieces for peer changes
+            # so taus don't sky rocket out of control
+            for peer in peers:
+                if peer.id not in ul_history:
+                    if peer.id in available_change:
+                        self.taus[peer.id] = self.cap/4.0
 
         chosen = []
         bws = []
@@ -164,8 +177,6 @@ class LkjcTyrant(Peer):
             # pick uploads
             ul = 0
             sorted_peers = sorted(ratios, key=lambda k: ratios[k], reverse=True)
-            #logging.info(sorted_peers)
-            #logging.info(ratios)
             for best in sorted_peers:
                 if (ul + self.taus[best]) <= self.cap:
                     chosen.append(best)
@@ -175,5 +186,5 @@ class LkjcTyrant(Peer):
         # create actual uploads out of the list of peer ids and bandwidths
         uploads = [Upload(self.id, peer_id, bw)
                    for (peer_id, bw) in zip(chosen, bws)]
-            
+
         return uploads
