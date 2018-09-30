@@ -25,7 +25,6 @@ class LkjcTyrant(Peer):
         self.flows = dict()
         self.taus = dict()
         self.unchoked_past = dict()
-        self.last_avail = dict()
     
     def requests(self, peers, history):
         """
@@ -82,6 +81,7 @@ class LkjcTyrant(Peer):
             count = 0
             while count < n:
                 for c, piece_id_list in rarest:
+                    # eliminate symmetry
                     random.shuffle(piece_id_list)
                     for piece_id in piece_id_list:
                         if piece_id in av_set:
@@ -118,7 +118,6 @@ class LkjcTyrant(Peer):
                 self.taus[peer.id] = self.up_bw / 4.0
                 # how many times has this peer unchoked me before?
                 self.unchoked_past[peer.id] = 0
-                self.last_avail[peer.id] = []
         else:
             # Step 5
             # look at last round downloads
@@ -134,7 +133,6 @@ class LkjcTyrant(Peer):
             for peer in peers:
                 if peer.id not in dl_history:
                     self.unchoked_past[peer.id] = 0
-                if peer.available_pieces != self.last_avail[peer.id]:
                     available_change.add(peer.id)
 
             # look at last round uploads
@@ -151,8 +149,8 @@ class LkjcTyrant(Peer):
                     if self.unchoked_past[peer] > self.r:
                         self.taus[peer] = self.taus[peer]*(1-self.gamma)
 
-            # update taus for peer to back to normal level of
-            # available pieces for peer changes
+            # update taus for peer to back to normal level
+            # if didn't upload to us
             # so taus don't sky rocket out of control
             for peer in peers:
                 if peer.id not in ul_history:

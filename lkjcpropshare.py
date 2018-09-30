@@ -75,6 +75,7 @@ class LkjcPropShare(Peer):
             count = 0
             while count < n:
                 for c, piece_id_list in rarest:
+                    # eliminate symmetry
                     random.shuffle(piece_id_list)
                     for piece_id in piece_id_list:
                         if piece_id in av_set:
